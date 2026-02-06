@@ -47,3 +47,24 @@ exports.deleteWaterData = async (req, res) => {
     res.status(500).json({ message: "Delete failed" });
   }
 };
+
+  // VERY IMPORTANT
+
+exports.updateWaterData = async (req, res) => {
+  try {
+    const updated = await WaterData.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Update failed" });
+  }
+};
