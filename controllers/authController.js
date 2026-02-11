@@ -8,7 +8,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const ADMIN_EMAILS = ["admin@gmail.com"];
 
 
-// ================= HELPER: Generate JWT =================
+// =================  Generate JWT =================
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -23,11 +23,13 @@ const generateToken = (user) => {
 // ================= REGISTER =================
 exports.register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    let { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
+
+    email = email.toLowerCase(); // 🔥 FIX
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -48,29 +50,18 @@ exports.register = async (req, res) => {
 
     const token = generateToken(user);
 
-    res.status(201).json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        provider: user.provider,
-        profilePic: user.profilePic,
-      },
-    });
+    res.status(201).json({ token, user });
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({ message: "Registration failed" });
   }
 };
 
+
 // ================= LOGIN =================
 exports.login = async (req, res) => {
-  console.log("LOGIN BODY =>", req.body);
-
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     if (!email || !password) {
       return res
@@ -78,10 +69,19 @@ exports.login = async (req, res) => {
         .json({ message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email });
+    email = email.toLowerCase(); // 🔥 FIX
 
-    if (!user || !user.password) {
+    const user = await User.findOne({ email }).select("+password");
+
+
+    if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    if (user.provider === "google") {
+      return res.status(400).json({
+        message: "Please login using Google",
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -108,23 +108,23 @@ exports.login = async (req, res) => {
   }
 };
 
+
 // ================= GOOGLE LOGIN =================
 exports.googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
-
     if (!credential) {
       return res.status(400).json({ message: "Google credential missing" });
     }
 
-    // Verify Google ID token
     const ticket = await client.verifyIdToken({
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
-    const { email, name, picture } = payload;
+    const email = payload.email.toLowerCase();
+    const { name, picture } = payload;
 
     const role = ADMIN_EMAILS.includes(email) ? "admin" : "user";
 
@@ -139,23 +139,18 @@ exports.googleLogin = async (req, res) => {
         provider: "google",
         profilePic: picture,
       });
+    } else if (user.provider === "local") {
+      user.provider = "google";
+      user.profilePic = picture;
+      await user.save();
     }
 
     const token = generateToken(user);
 
-    res.status(200).json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        provider: user.provider,
-        profilePic: user.profilePic,
-      },
-    });
+    res.status(200).json({ token, user });
   } catch (error) {
     console.error("Google login error:", error);
     res.status(401).json({ message: "Google authentication failed" });
   }
 };
+

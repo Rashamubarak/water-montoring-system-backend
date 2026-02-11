@@ -14,10 +14,11 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
-    password: {
-      type: String,
-      default: null, // null for Google-auth users
-    },
+   password: {
+  type: String,
+  select: false,
+},
+
     provider: {
       type: String,
       enum: ["local", "google"],
