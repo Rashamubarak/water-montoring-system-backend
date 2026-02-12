@@ -64,3 +64,16 @@ exports.updateRole = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+
+exports.getAllReports = async (req, res) => {
+  try {
+    const reports = await Report.find()
+      .populate("user", "name email")
+      .sort({ createdAt: -1 });
+
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
